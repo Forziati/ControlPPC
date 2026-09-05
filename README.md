@@ -53,22 +53,31 @@ Abrir [http://localhost:8501](http://localhost:8501)
 
 ## Datos de Entrada
 
-La app incluye datos de ejemplo en `data/` y permite cargar los propios desde la pestaña "Cargar Datos":
+Sólo se suben dos archivos (o se usan los de ejemplo incluidos en `data/`) desde la
+pestaña "Datos y Registro":
 
-- `cronograma_semanal.csv`
+- `cronograma_semanal.csv` (programa de obra — de acá sale la curva S esperada, calculada
+  automáticamente)
 - `precios_unitarios.csv`
-- `ejecucion_diaria.csv`
-- `causas_incumplimiento.csv`
-- `curva_s_esperada.csv`
+
+El resto se carga **directo en la app**, sin subir CSVs:
+
+- El avance diario se registra en una planilla editable estilo Excel (día, actividad,
+  frente, volumen ejecutado, causa CNC).
+- El catálogo de causas de no cumplimiento (CNC) es fijo dentro del sistema
+  (`data/causas_incumplimiento.csv`, no se sube ni se edita).
 
 ## Flujo de Uso
 
-1. **Cargar Datos**: sube los 5 CSV (o usa los de ejemplo) y procesa la semana actual.
-2. **Tablero**: revisa avance financiero, PPC y top 5 CNC de la semana.
-3. **Curva S**: compara el avance real contra el plan esperado.
-4. **Acciones**: registra acciones correctivas para las causas detectadas.
-5. **Seguimiento**: en la semana siguiente, revisa y cierra las acciones pendientes.
-6. **Histórico**: analiza tendencias a lo largo de las semanas procesadas.
+1. **Datos y Registro**: sube el programa de obra y los precios (o usa los de ejemplo),
+   cargá el avance de la semana en la planilla y presioná "Guardar y calcular semana".
+2. **Curva S**: compara el avance real acumulado contra el plan esperado.
+3. **PPC**: revisa el PPC de la semana (gráfico de líneas) y el detalle por actividad.
+4. **CNC y Acciones**: frecuencia de causas semanal y acumulada, con la acción correctiva
+   y el responsable vigente para cada una.
+5. **Acciones**: registra nuevas acciones correctivas para las causas detectadas.
+6. **Seguimiento**: en la semana siguiente, revisa y cierra las acciones pendientes.
+7. **Histórico**: analiza tendencias a lo largo de las semanas procesadas.
 
 ## Documentación
 

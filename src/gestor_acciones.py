@@ -94,3 +94,11 @@ def generar_tabla_acciones_dict(acciones_list: list) -> dict:
         for columna in columnas:
             tabla[columna].append(accion.get(columna))
     return tabla
+
+
+def obtener_accion_vigente_por_cnc(cnc: str, acciones_list: list):
+    """Devuelve la acción más reciente registrada para una causa CNC, o None si no hay ninguna."""
+    candidatas = [accion for accion in acciones_list if accion.get("cnc") == cnc]
+    if not candidatas:
+        return None
+    return max(candidatas, key=lambda accion: accion.get("fecha_creacion", ""))

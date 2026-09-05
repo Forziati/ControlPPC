@@ -8,6 +8,9 @@ from datetime import datetime
 import pandas as pd
 
 PATRON_CIERRE = re.compile(r"^s(\d+)_cierre\.json$")
+PATRON_EJECUCION = re.compile(r"^s(\d+)_ejecucion\.json$")
+
+COLUMNAS_EJECUCION = ["semana", "dia", "actividad", "frente", "volumen_ejecutado", "cnc"]
 
 
 def _ruta_cierre(semana: int, ruta_historico: str) -> str:
@@ -16,6 +19,10 @@ def _ruta_cierre(semana: int, ruta_historico: str) -> str:
 
 def _ruta_acciones(semana: int, ruta_historico: str) -> str:
     return os.path.join(ruta_historico, f"s{semana}_acciones.json")
+
+
+def _ruta_ejecucion(semana: int, ruta_historico: str) -> str:
+    return os.path.join(ruta_historico, f"s{semana}_ejecucion.json")
 
 
 def _ruta_acumulados(ruta_historico: str) -> str:
@@ -109,3 +116,52 @@ def listar_semanas_procesadas(ruta_historico: str) -> list:
             semanas.append(int(coincidencia.group(1)))
 
     return sorted(semanas)
+
+
+def guardar_ejecucion_semana(semana: int, df_ejecucion: pd.DataFrame, ruta_historico: str) -> str:
+    """Guarda (reemplazando) las filas de ejecución diaria registradas para una semana.
+
+    Estas filas son las que el usuario carga directamente en la planilla de la app
+    (sin subir ningún CSV). Devuelve la ruta del archivo.
+    """
+    os.makedirs(ruta_historico, exist_ok=True)
+    registros = _a_serializable(df_ejecucion)
+    ruta = _ruta_ejecucion(semana, ruta_historico)
+    with open(ruta, "w", encoding="utf-8") as archivo:
+        json.dump(registros, archivo, ensure_ascii=False, indent=2, default=str)
+    return ruta
+
+
+def cargar_ejecucion_semana(semana: int, ruta_historico: str) -> list:
+    """Carga las filas de ejecución diaria de una semana. Devuelve lista vacía si no existen."""
+    ruta = _ruta_ejecucion(semana, ruta_historico)
+    if not os.path.exists(ruta):
+        return []
+    with open(ruta, "r", encoding="utf-8") as archivo:
+        return json.load(archivo)
+
+
+def listar_semanas_con_ejecucion(ruta_historico: str) -> list:
+    """Devuelve la lista ordenada de semanas que tienen ejecución diaria registrada."""
+    if not os.path.isdir(ruta_historico):
+        return []
+
+    semanas = []
+    for nombre_archivo in os.listdir(ruta_historico):
+        coincidencia = PATRON_EJECUCION.match(nombre_archivo)
+        if coincidencia:
+            semanas.append(int(coincidencia.group(1)))
+
+    return sorted(semanas)
+
+
+def cargar_ejecucion_historica(ruta_historico: str) -> pd.DataFrame:
+    """Reconstruye la ejecución diaria de todo el proyecto a partir de las semanas guardadas."""
+    filas = []
+    for semana in listar_semanas_con_ejecucion(ruta_historico):
+        filas.extend(cargar_ejecucion_semana(semana, ruta_historico))
+
+    if not filas:
+        return pd.DataFrame(columns=COLUMNAS_EJECUCION)
+
+    return pd.DataFrame(filas)

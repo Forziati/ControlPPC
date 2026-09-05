@@ -8,7 +8,6 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.analizador_cnc import (
-    calcular_porcentajes,
     contar_cnc_frecuencias,
     enriquecer_con_descripciones,
     obtener_top_5,
@@ -20,18 +19,30 @@ from src.calculador_inversion import (
     calcular_porcentaje_financiero,
 )
 from src.calculador_ppc import calcular_ppc_acumulado, calcular_ppc_por_actividad
-from src.comparador_curva_s import calcular_desviacion, clasificar_estado
-from src.gestor_acciones import ESTADOS_VALIDOS, crear_accion, generar_tabla_acciones_dict
+from src.comparador_curva_s import (
+    calcular_curva_s_esperada_desde_cronograma,
+    calcular_desviacion,
+    clasificar_estado,
+)
+from src.gestor_acciones import (
+    ESTADOS_VALIDOS,
+    actualizar_estado,
+    crear_accion,
+    generar_tabla_acciones_dict,
+    obtener_accion_vigente_por_cnc,
+)
 from src.persistencia import (
     actualizar_acumulados,
     cargar_acciones,
     cargar_cierre,
+    cargar_ejecucion_historica,
+    cargar_ejecucion_semana,
     guardar_acciones,
     guardar_cierre,
+    guardar_ejecucion_semana,
     listar_semanas_procesadas,
 )
 from src.validador import (
-    validar_causas,
     validar_consistencia,
     validar_cronograma,
     validar_ejecucion,
@@ -44,10 +55,12 @@ RUTA_HISTORICO = os.path.join(RUTA_DATOS, "historico")
 ARCHIVOS_DEFAULT = {
     "cronograma_df": "cronograma_semanal.csv",
     "precios_df": "precios_unitarios.csv",
-    "ejecucion_df": "ejecucion_diaria.csv",
-    "causas_df": "causas_incumplimiento.csv",
-    "curva_s_df": "curva_s_esperada.csv",
 }
+
+DIAS_DISPONIBLES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado"]
+COLUMNAS_EDITOR = ["dia", "actividad", "frente", "volumen_ejecutado", "cnc"]
+
+CAUSAS_DF = pd.read_csv(os.path.join(RUTA_DATOS, "causas_incumplimiento.csv"))
 
 
 def _inicializar_estado():
@@ -71,28 +84,47 @@ def _guardar_acciones_semana(semana: int, acciones: list):
     guardar_acciones(semana, acciones, RUTA_HISTORICO)
 
 
+def _agregar_accion_responsable(cnc_df: pd.DataFrame, acciones_list: list) -> pd.DataFrame:
+    """Agrega columnas 'accion' y 'responsable' con la acción vigente para cada causa CNC."""
+    cnc_df = cnc_df.copy()
+    acciones_col, responsables_col = [], []
+    for codigo in cnc_df["codigo"]:
+        vigente = obtener_accion_vigente_por_cnc(codigo, acciones_list)
+        acciones_col.append(vigente["descripcion"] if vigente else "Sin acción registrada")
+        responsables_col.append(vigente["responsable"] if vigente else "—")
+    cnc_df["accion"] = acciones_col
+    cnc_df["responsable"] = responsables_col
+    return cnc_df
+
+
 def _procesar_datos(semana_actual: int) -> list:
-    """Valida y procesa todos los datos cargados. Devuelve la lista de errores encontrados."""
+    """Valida y procesa todos los datos disponibles. Devuelve la lista de errores encontrados."""
     cronograma_df = st.session_state["cronograma_df"]
     precios_df = st.session_state["precios_df"]
-    ejecucion_df = st.session_state["ejecucion_df"]
-    causas_df = st.session_state["causas_df"]
-    curva_s_df = st.session_state["curva_s_df"]
 
     errores = []
     errores += validar_cronograma(cronograma_df)
     errores += validar_precios(precios_df)
-    errores += validar_ejecucion(ejecucion_df)
-    errores += validar_causas(causas_df)
-    errores += validar_consistencia(cronograma_df, ejecucion_df)
     if errores:
         return errores
+
+    ejecucion_df = cargar_ejecucion_historica(RUTA_HISTORICO)
+    if not ejecucion_df.empty:
+        errores += validar_ejecucion(ejecucion_df)
+        errores += validar_consistencia(cronograma_df, ejecucion_df)
+    if errores:
+        return errores
+
+    curva_s_df = calcular_curva_s_esperada_desde_cronograma(cronograma_df, precios_df)
 
     ppc_por_actividad = calcular_ppc_por_actividad(cronograma_df, ejecucion_df)
     ppc_acumulado = calcular_ppc_acumulado(ppc_por_actividad)
 
     monto_programado = calcular_monto_programado(cronograma_df, precios_df)
-    monto_ejecutado = calcular_monto_ejecutado(ejecucion_df, precios_df)
+    if ejecucion_df.empty:
+        monto_ejecutado = pd.DataFrame(columns=["semana", "monto_ejecutado"])
+    else:
+        monto_ejecutado = calcular_monto_ejecutado(ejecucion_df, precios_df)
     montos = monto_programado.merge(monto_ejecutado, on="semana", how="outer").fillna(0)
     montos = montos.sort_values("semana").reset_index(drop=True)
     montos_acumulados = calcular_acumulado(montos)
@@ -107,9 +139,19 @@ def _procesar_datos(semana_actual: int) -> list:
     comparacion_curva_s["estado"] = clasificar_estado(comparacion_curva_s["desviacion"])
 
     ejecucion_semana = ejecucion_df[ejecucion_df["semana"] == semana_actual]
-    frecuencias = contar_cnc_frecuencias(ejecucion_semana)
-    top5 = obtener_top_5(frecuencias)
-    cnc_top5_df = enriquecer_con_descripciones(top5, causas_df)
+    frecuencias_semana = contar_cnc_frecuencias(ejecucion_semana)
+    cnc_semana_df = enriquecer_con_descripciones(obtener_top_5(frecuencias_semana), CAUSAS_DF)
+
+    frecuencias_total = contar_cnc_frecuencias(ejecucion_df)
+    cnc_total_df = enriquecer_con_descripciones(obtener_top_5(frecuencias_total), CAUSAS_DF)
+
+    acciones_semana = _obtener_acciones(semana_actual)
+    acciones_todas = []
+    for semana in range(1, semana_actual + 1):
+        acciones_todas.extend(_obtener_acciones(semana))
+
+    cnc_semana_df = _agregar_accion_responsable(cnc_semana_df, acciones_semana)
+    cnc_total_df = _agregar_accion_responsable(cnc_total_df, acciones_todas)
 
     st.session_state["resultados"] = {
         "ppc_por_actividad": ppc_por_actividad,
@@ -117,7 +159,10 @@ def _procesar_datos(semana_actual: int) -> list:
         "montos_acumulados": montos_acumulados,
         "total_presupuesto": total_presupuesto,
         "comparacion_curva_s": comparacion_curva_s,
-        "cnc_top5_df": cnc_top5_df,
+        "cnc_semana_df": cnc_semana_df,
+        "cnc_total_df": cnc_total_df,
+        "frecuencias_semana_total": sum(frecuencias_semana.values()),
+        "frecuencias_total_total": sum(frecuencias_total.values()),
     }
 
     fila_semana = ppc_acumulado[ppc_acumulado["semana"] == semana_actual]
@@ -137,7 +182,7 @@ def _procesar_datos(semana_actual: int) -> list:
         "estado_curva_s": str(fila_curva["estado"].iloc[0]) if not fila_curva.empty else "Sin datos",
     }
 
-    guardar_cierre(semana_actual, metricas, cnc_top5_df, RUTA_HISTORICO)
+    guardar_cierre(semana_actual, metricas, cnc_semana_df, RUTA_HISTORICO)
     actualizar_acumulados({"semana": semana_actual, **metricas}, RUTA_HISTORICO)
 
     return []
@@ -145,10 +190,18 @@ def _procesar_datos(semana_actual: int) -> list:
 
 def _semaforo_ppc(ppc: float) -> str:
     if ppc >= 85:
-        return "🟢"
+        return "🟢 En meta"
     if ppc >= 70:
-        return "🟡"
-    return "🔴"
+        return "🟡 Atención"
+    return "🔴 Crítico"
+
+
+def _color_ppc(ppc: float) -> str:
+    if ppc >= 85:
+        return "#2ecc71"
+    if ppc >= 70:
+        return "#f1c40f"
+    return "#e74c3c"
 
 
 st.set_page_config(page_title="Control de Avance de Obra", layout="wide")
@@ -156,7 +209,7 @@ _inicializar_estado()
 
 with st.sidebar:
     st.title("Control de Avance de Obra")
-    st.caption("Sistema semanal de PPC, inversión y acciones correctivas")
+    st.caption("Sistema semanal de PPC, inversión, curva S y acciones correctivas")
     semana_actual = st.number_input("Semana actual", min_value=1, max_value=52, value=1, step=1)
     semanas_procesadas = listar_semanas_procesadas(RUTA_HISTORICO)
     if semanas_procesadas:
@@ -164,116 +217,134 @@ with st.sidebar:
     else:
         st.markdown("**Semanas procesadas:** ninguna todavía")
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
-    ["Cargar Datos", "Tablero", "Curva S", "Acciones", "Seguimiento", "Histórico"]
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(
+    ["Datos y Registro", "Curva S", "PPC", "CNC y Acciones", "Acciones", "Seguimiento", "Histórico"]
 )
 
 with tab1:
-    st.subheader("Cargar Datos Semanales")
+    st.subheader("Datos base y registro de avance")
+
+    st.markdown("##### A · Documentos base del proyecto")
+    st.caption("Se suben una sola vez (o al re-programar la obra).")
     usar_ejemplo = st.checkbox("Usar datos de ejemplo incluidos en el repositorio", value=True)
 
     col_a, col_b = st.columns(2)
-    uploads = {}
     with col_a:
-        uploads["cronograma_df"] = st.file_uploader("cronograma_semanal.csv", type="csv")
-        uploads["precios_df"] = st.file_uploader("precios_unitarios.csv", type="csv")
-        uploads["ejecucion_df"] = st.file_uploader("ejecucion_diaria.csv", type="csv")
+        archivo_cronograma = st.file_uploader("Programa de obra / cronograma", type="csv")
     with col_b:
-        uploads["causas_df"] = st.file_uploader("causas_incumplimiento.csv", type="csv")
-        uploads["curva_s_df"] = st.file_uploader("curva_s_esperada.csv", type="csv")
+        archivo_precios = st.file_uploader("Precios unitarios", type="csv")
 
-    for clave, archivo_subido in uploads.items():
-        if archivo_subido is not None:
-            st.session_state[clave] = pd.read_csv(archivo_subido)
-        elif usar_ejemplo:
-            ruta_default = os.path.join(RUTA_DATOS, ARCHIVOS_DEFAULT[clave])
-            st.session_state[clave] = pd.read_csv(ruta_default)
+    if archivo_cronograma is not None:
+        st.session_state["cronograma_df"] = pd.read_csv(archivo_cronograma)
+    elif usar_ejemplo:
+        st.session_state["cronograma_df"] = pd.read_csv(os.path.join(RUTA_DATOS, ARCHIVOS_DEFAULT["cronograma_df"]))
 
-    datos_listos = all(st.session_state[clave] is not None for clave in ARCHIVOS_DEFAULT)
+    if archivo_precios is not None:
+        st.session_state["precios_df"] = pd.read_csv(archivo_precios)
+    elif usar_ejemplo:
+        st.session_state["precios_df"] = pd.read_csv(os.path.join(RUTA_DATOS, ARCHIVOS_DEFAULT["precios_df"]))
 
-    if datos_listos:
-        with st.expander("Vista previa de los datos cargados"):
-            for clave, nombre_archivo in ARCHIVOS_DEFAULT.items():
-                st.markdown(f"**{nombre_archivo}**")
-                st.dataframe(st.session_state[clave], use_container_width=True)
+    cronograma_df = st.session_state["cronograma_df"]
+    precios_df = st.session_state["precios_df"]
+    datos_base_listos = cronograma_df is not None and precios_df is not None
 
-    if st.button("Procesar Datos", type="primary", disabled=not datos_listos):
-        errores = _procesar_datos(int(semana_actual))
-        if errores:
-            st.error("Se encontraron errores de validación:")
-            for error in errores:
-                st.markdown(f"- {error}")
+    st.info(
+        "La curva S esperada se calcula automáticamente a partir del programa de obra y los precios "
+        "unitarios: ya no hace falta subirla aparte. El catálogo de causas de no cumplimiento (CNC) "
+        "es fijo dentro del sistema (ver panel C)."
+    )
+
+    if not datos_base_listos:
+        st.warning("Subí el programa de obra y los precios unitarios (o activá 'Usar datos de ejemplo') para continuar.")
+    else:
+        st.markdown("---")
+        st.markdown(f"##### B · Registro diario de avance — Semana {int(semana_actual)}")
+        st.caption("Cargá el avance directo acá, estilo planilla. No hace falta subir ningún CSV de ejecución.")
+
+        actividades_disponibles = sorted(cronograma_df["actividad"].unique().tolist())
+        frentes_disponibles = sorted(cronograma_df["frente"].unique().tolist())
+        cnc_disponibles = [""] + CAUSAS_DF["codigo"].tolist()
+
+        registros_guardados = cargar_ejecucion_semana(int(semana_actual), RUTA_HISTORICO)
+        if registros_guardados:
+            df_editor_base = pd.DataFrame(registros_guardados)[COLUMNAS_EDITOR]
         else:
-            st.success(f"Datos de la semana {int(semana_actual)} procesados y guardados correctamente.")
+            actividades_semana = (
+                cronograma_df[cronograma_df["semana"] == semana_actual][["actividad", "frente"]].drop_duplicates()
+            )
+            if actividades_semana.empty:
+                df_editor_base = pd.DataFrame(columns=COLUMNAS_EDITOR)
+            else:
+                df_editor_base = pd.DataFrame(
+                    {
+                        "dia": "lunes",
+                        "actividad": actividades_semana["actividad"].values,
+                        "frente": actividades_semana["frente"].values,
+                        "volumen_ejecutado": 0,
+                        "cnc": "",
+                    }
+                )
 
-    if not datos_listos:
-        st.info("Sube los 5 archivos CSV o activa 'Usar datos de ejemplo' para continuar.")
+        df_editado = st.data_editor(
+            df_editor_base,
+            num_rows="dynamic",
+            use_container_width=True,
+            key=f"editor_ejecucion_{int(semana_actual)}",
+            column_config={
+                "dia": st.column_config.SelectboxColumn("Día", options=DIAS_DISPONIBLES, required=True),
+                "actividad": st.column_config.SelectboxColumn("Actividad", options=actividades_disponibles, required=True),
+                "frente": st.column_config.SelectboxColumn("Frente", options=frentes_disponibles, required=True),
+                "volumen_ejecutado": st.column_config.NumberColumn("Vol. ejecutado", min_value=0, step=1, required=True),
+                "cnc": st.column_config.SelectboxColumn("Causa (CNC)", options=cnc_disponibles),
+            },
+        )
+
+        if st.button("Guardar y calcular semana", type="primary"):
+            df_para_guardar = df_editado.copy()
+            df_para_guardar["cnc"] = df_para_guardar["cnc"].fillna("")
+            df_para_guardar["semana"] = int(semana_actual)
+
+            errores = validar_ejecucion(df_para_guardar) + validar_consistencia(cronograma_df, df_para_guardar)
+            if errores:
+                st.error("Se encontraron errores de validación:")
+                for error in errores:
+                    st.markdown(f"- {error}")
+            else:
+                guardar_ejecucion_semana(int(semana_actual), df_para_guardar, RUTA_HISTORICO)
+                errores_generales = _procesar_datos(int(semana_actual))
+                if errores_generales:
+                    st.error("Se encontraron errores al procesar todos los datos:")
+                    for error in errores_generales:
+                        st.markdown(f"- {error}")
+                else:
+                    st.success(f"Semana {int(semana_actual)} guardada y calculada correctamente.")
+
+        st.markdown("---")
+        st.markdown("##### C · Catálogo de causas de no cumplimiento (CNC)")
+        st.caption("Fijo en el sistema — no se sube ni se edita.")
+        st.markdown(
+            " &nbsp; ".join(f"`{fila.codigo}` {fila.descripcion}" for fila in CAUSAS_DF.itertuples())
+        )
 
 with tab2:
-    st.subheader(f"Tablero - Semana {int(semana_actual)}")
-    resultados = st.session_state.get("resultados")
-
-    if not resultados:
-        st.info("Procesa los datos en la pestaña 'Cargar Datos' para ver el tablero.")
-    else:
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.markdown("#### Avance Financiero")
-            montos = resultados["montos_acumulados"]
-            fila = montos[montos["semana"] == semana_actual]
-            programado = float(fila["monto_programado_acumulado"].iloc[0]) if not fila.empty else 0.0
-            ejecutado = float(fila["monto_ejecutado_acumulado"].iloc[0]) if not fila.empty else 0.0
-            st.metric("Inversión Acumulada", f"${ejecutado:,.0f}", f"Programado: ${programado:,.0f}")
-            if programado > 0:
-                st.progress(min(ejecutado / programado, 1.0))
-
-            fig_fin = go.Figure()
-            fig_fin.add_bar(x=montos["semana"], y=montos["monto_programado"], name="Programado (semanal)")
-            fig_fin.add_bar(x=montos["semana"], y=montos["monto_ejecutado"], name="Ejecutado (semanal)")
-            fig_fin.add_trace(
-                go.Scatter(x=montos["semana"], y=montos["monto_ejecutado_acumulado"], name="Ejecutado acumulado", mode="lines+markers")
-            )
-            fig_fin.update_layout(barmode="group", height=350, margin=dict(l=10, r=10, t=30, b=10))
-            st.plotly_chart(fig_fin, use_container_width=True)
-
-        with col2:
-            st.markdown("#### PPC Semanal")
-            ppc_df = resultados["ppc_acumulado"]
-            fila_ppc = ppc_df[ppc_df["semana"] == semana_actual]
-            ppc_valor = float(fila_ppc["ppc"].iloc[0]) if not fila_ppc.empty else 0.0
-            st.metric("PPC", f"{ppc_valor:.1f}%", _semaforo_ppc(ppc_valor))
-
-            colores = ["#2ecc71" if v >= 85 else "#f1c40f" if v >= 70 else "#e74c3c" for v in ppc_df["ppc"]]
-            fig_ppc = go.Figure(go.Bar(x=ppc_df["semana"], y=ppc_df["ppc"], marker_color=colores))
-            fig_ppc.update_layout(height=350, margin=dict(l=10, r=10, t=30, b=10), yaxis_title="PPC (%)", xaxis_title="Semana")
-            st.plotly_chart(fig_ppc, use_container_width=True)
-
-        with col3:
-            st.markdown("#### Top 5 CNC")
-            cnc_df = resultados["cnc_top5_df"]
-            if cnc_df.empty:
-                st.info("No se registraron causas de no cumplimiento esta semana.")
-            else:
-                fig_cnc = px.bar(
-                    cnc_df.sort_values("frecuencia"),
-                    x="frecuencia",
-                    y="codigo",
-                    orientation="h",
-                    text="porcentaje",
-                )
-                fig_cnc.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
-                st.plotly_chart(fig_cnc, use_container_width=True)
-                st.dataframe(cnc_df, use_container_width=True, hide_index=True)
-
-with tab3:
     st.subheader("Curva S: Real vs. Esperado")
     resultados = st.session_state.get("resultados")
 
     if not resultados:
-        st.info("Procesa los datos en la pestaña 'Cargar Datos' para ver la curva S.")
+        st.info("Procesá los datos en la pestaña 'Datos y Registro' para ver la curva S.")
     else:
         comparacion = resultados["comparacion_curva_s"]
+        fila_actual = comparacion[comparacion["semana"] == semana_actual]
+
+        col1, col2, col3 = st.columns(3)
+        real_actual = float(fila_actual["porcentaje_acumulado_real"].iloc[0]) if not fila_actual.empty else 0.0
+        esperado_actual = float(fila_actual["porcentaje_acumulado_esperado"].iloc[0]) if not fila_actual.empty else 0.0
+        col1.metric("Avance real acumulado", f"{real_actual:.1f}%")
+        col2.metric("Esperado a la semana actual", f"{esperado_actual:.1f}%")
+        if not fila_actual.empty:
+            desviacion = float(fila_actual["desviacion"].iloc[0])
+            estado = str(fila_actual["estado"].iloc[0])
+            col3.metric("Desviación", f"{desviacion:+.2f} pp", estado)
 
         fig_curva = go.Figure()
         fig_curva.add_trace(
@@ -285,40 +356,128 @@ with tab3:
         fig_curva.update_layout(height=400, xaxis_title="Semana", yaxis_title="% Acumulado")
         st.plotly_chart(fig_curva, use_container_width=True)
 
-        fila_actual = comparacion[comparacion["semana"] == semana_actual]
-        if not fila_actual.empty:
-            desviacion = float(fila_actual["desviacion"].iloc[0])
-            estado = str(fila_actual["estado"].iloc[0])
-            st.metric(f"Desviación semana {int(semana_actual)}", f"{desviacion:+.2f} pp", estado)
-
         st.markdown("#### Tabla comparativa por semana")
         st.dataframe(comparacion, use_container_width=True, hide_index=True)
 
+with tab3:
+    st.subheader(f"PPC — Semana {int(semana_actual)}")
+    resultados = st.session_state.get("resultados")
+
+    if not resultados:
+        st.info("Procesá los datos en la pestaña 'Datos y Registro' para ver el PPC.")
+    else:
+        ppc_df = resultados["ppc_acumulado"]
+        fila_ppc = ppc_df[ppc_df["semana"] == semana_actual]
+        ppc_valor = float(fila_ppc["ppc"].iloc[0]) if not fila_ppc.empty else 0.0
+        total_actividades = int(fila_ppc["total_actividades"].iloc[0]) if not fila_ppc.empty else 0
+        cumplidas = int(fila_ppc["actividades_cumplidas"].iloc[0]) if not fila_ppc.empty else 0
+        tendencia = ppc_valor - float(ppc_df["ppc"].iloc[0]) if not ppc_df.empty else 0.0
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("PPC semana actual", f"{ppc_valor:.1f}%", _semaforo_ppc(ppc_valor))
+        col2.metric("Actividades cumplidas", f"{cumplidas} / {total_actividades}")
+        col3.metric("Tendencia", f"{tendencia:+.1f} pp", f"desde semana {int(ppc_df['semana'].min())}" if not ppc_df.empty else None)
+
+        if not ppc_df.empty:
+            colores_pt = [_color_ppc(v) for v in ppc_df["ppc"]]
+            fig_ppc = go.Figure()
+            fig_ppc.add_trace(
+                go.Scatter(
+                    x=ppc_df["semana"], y=ppc_df["ppc"], mode="lines+markers", name="PPC",
+                    line=dict(width=3, color="#2a78d6"), marker=dict(size=11, color=colores_pt),
+                )
+            )
+            fig_ppc.add_hline(y=85, line_dash="dash", line_color="gray", annotation_text="Meta 85%")
+            fig_ppc.add_hline(y=70, line_dash="dash", line_color="gray", annotation_text="Mínimo 70%")
+            fig_ppc.update_layout(height=380, yaxis_title="PPC (%)", xaxis_title="Semana", yaxis_range=[0, 105])
+            st.plotly_chart(fig_ppc, use_container_width=True)
+            st.caption("🟢 En meta (≥85%) · 🟡 Atención (70–84%) · 🔴 Crítico (<70%)")
+
+        st.markdown("#### Detalle de actividades — Semana actual")
+        detalle = resultados["ppc_por_actividad"]
+        detalle_semana = detalle[detalle["semana"] == semana_actual].copy()
+        if detalle_semana.empty:
+            st.info("No hay actividades registradas para esta semana todavía.")
+        else:
+            detalle_semana["porcentaje_avance"] = detalle_semana["porcentaje_avance"].round(1)
+            detalle_semana["cumplida"] = detalle_semana["cumplida"].map({True: "Sí", False: "No"})
+            st.dataframe(
+                detalle_semana[
+                    ["actividad", "frente", "volumen_programado", "volumen_ejecutado", "porcentaje_avance", "cumplida"]
+                ],
+                use_container_width=True,
+                hide_index=True,
+            )
+
 with tab4:
+    st.subheader("CNC y Acciones Correctivas")
+    resultados = st.session_state.get("resultados")
+
+    if not resultados:
+        st.info("Procesá los datos en la pestaña 'Datos y Registro' para ver esta vista.")
+    else:
+        cnc_semana_df = resultados["cnc_semana_df"]
+        cnc_total_df = resultados["cnc_total_df"]
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Incidencias · semana", int(resultados["frecuencias_semana_total"]))
+        if not cnc_semana_df.empty:
+            principal_semana = cnc_semana_df.iloc[0]
+            col2.metric("Principal · semana", principal_semana["codigo"], f"{principal_semana['porcentaje']:.0f}%")
+        else:
+            col2.metric("Principal · semana", "—")
+        col3.metric("Incidencias · acumulado", int(resultados["frecuencias_total_total"]))
+        if not cnc_total_df.empty:
+            principal_total = cnc_total_df.iloc[0]
+            col4.metric("Principal · acumulado", principal_total["codigo"], f"{principal_total['porcentaje']:.0f}%")
+        else:
+            col4.metric("Principal · acumulado", "—")
+
+        columnas_tabla = ["codigo", "descripcion", "categoria", "frecuencia", "porcentaje", "accion", "responsable"]
+
+        st.markdown("---")
+        st.markdown(f"##### CNC de la semana — Semana {int(semana_actual)}")
+        if cnc_semana_df.empty:
+            st.info("No se registraron causas de no cumplimiento esta semana.")
+        else:
+            fig_semana = px.bar(cnc_semana_df.sort_values("frecuencia"), x="frecuencia", y="codigo", orientation="h", text="porcentaje")
+            fig_semana.update_layout(height=220, margin=dict(l=10, r=10, t=20, b=10))
+            st.plotly_chart(fig_semana, use_container_width=True)
+            st.dataframe(cnc_semana_df[columnas_tabla], use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+        st.markdown("##### CNC acumulado — Proyecto completo")
+        if cnc_total_df.empty:
+            st.info("Todavía no hay causas de no cumplimiento registradas.")
+        else:
+            fig_total = px.bar(cnc_total_df.sort_values("frecuencia"), x="frecuencia", y="codigo", orientation="h", text="porcentaje")
+            fig_total.update_layout(height=250, margin=dict(l=10, r=10, t=20, b=10))
+            st.plotly_chart(fig_total, use_container_width=True)
+            st.dataframe(cnc_total_df[columnas_tabla], use_container_width=True, hide_index=True)
+
+        st.caption("La 'acción correctiva' mostrada es la más reciente registrada para esa causa en la pestaña 'Acciones'.")
+
+with tab5:
     st.subheader("Acciones Correctivas")
-    causas_df = st.session_state.get("causas_df")
 
     st.markdown("#### Registro de Nuevas Acciones")
-    if causas_df is None:
-        st.info("Carga los datos en la pestaña 'Cargar Datos' para registrar acciones.")
-    else:
-        with st.form("form_nueva_accion", clear_on_submit=True):
-            cnc = st.selectbox("Causa CNC", options=causas_df["codigo"].tolist())
-            descripcion = st.text_input("Descripción")
-            responsable = st.text_input("Responsable")
-            email = st.text_input("Email")
-            fecha_plazo = st.date_input("Fecha plazo")
-            enviado = st.form_submit_button("Registrar Acción")
+    with st.form("form_nueva_accion", clear_on_submit=True):
+        cnc = st.selectbox("Causa CNC", options=CAUSAS_DF["codigo"].tolist())
+        descripcion = st.text_input("Descripción")
+        responsable = st.text_input("Responsable")
+        email = st.text_input("Email")
+        fecha_plazo = st.date_input("Fecha plazo")
+        enviado = st.form_submit_button("Registrar Acción")
 
-            if enviado:
-                try:
-                    nueva_accion = crear_accion(cnc, descripcion, responsable, email, fecha_plazo)
-                    acciones = _obtener_acciones(int(semana_actual))
-                    acciones.append(nueva_accion)
-                    _guardar_acciones_semana(int(semana_actual), acciones)
-                    st.success("Acción registrada correctamente.")
-                except ValueError as error:
-                    st.error(str(error))
+        if enviado:
+            try:
+                nueva_accion = crear_accion(cnc, descripcion, responsable, email, fecha_plazo)
+                acciones = _obtener_acciones(int(semana_actual))
+                acciones.append(nueva_accion)
+                _guardar_acciones_semana(int(semana_actual), acciones)
+                st.success("Acción registrada correctamente.")
+            except ValueError as error:
+                st.error(str(error))
 
     st.markdown("#### Acciones de la Semana Actual")
     acciones_actuales = _obtener_acciones(int(semana_actual))
@@ -342,14 +501,12 @@ with tab4:
             st.write("")
             st.write("")
             if st.button("Actualizar Estado"):
-                from src.gestor_acciones import actualizar_estado
-
                 actualizar_estado(acciones_actuales, id_seleccionado, nuevo_estado)
                 _guardar_acciones_semana(int(semana_actual), acciones_actuales)
                 st.success("Estado actualizado.")
                 st.rerun()
 
-with tab5:
+with tab6:
     st.subheader("Seguimiento de Semana Anterior")
     semanas_disponibles = [s for s in listar_semanas_procesadas(RUTA_HISTORICO) if s < semana_actual]
 
@@ -376,15 +533,13 @@ with tab5:
                     st.divider()
 
                 if st.form_submit_button("Guardar Seguimiento"):
-                    from src.gestor_acciones import actualizar_estado
-
                     for id_accion, (completada, funciono, observaciones) in respuestas.items():
                         nuevo_estado = "completada" if completada else "en_curso"
                         actualizar_estado(acciones_previas, id_accion, nuevo_estado, resultado=funciono, observaciones=observaciones)
                     _guardar_acciones_semana(int(semana_revisar), acciones_previas)
-                    st.success("Seguimiento guardado. Ya puedes cargar los datos de la semana actual.")
+                    st.success("Seguimiento guardado. Ya podés cargar los datos de la semana actual.")
 
-with tab6:
+with tab7:
     st.subheader("Histórico y Reportes")
     semanas_disponibles = listar_semanas_procesadas(RUTA_HISTORICO)
 

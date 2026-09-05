@@ -2,6 +2,8 @@
 
 import pandas as pd
 
+from .calculador_inversion import calcular_acumulado, calcular_monto_programado, calcular_porcentaje_financiero
+
 UMBRAL_DESVIACION = 2.0
 
 
@@ -12,6 +14,22 @@ def cargar_curva_s_esperada(archivo) -> pd.DataFrame:
     Devuelve un DataFrame con columnas: semana, porcentaje_acumulado_esperado.
     """
     return pd.read_csv(archivo)
+
+
+def calcular_curva_s_esperada_desde_cronograma(cronograma_df: pd.DataFrame, precios_df: pd.DataFrame) -> pd.DataFrame:
+    """Deriva la curva S esperada directamente del cronograma y los precios unitarios.
+
+    No requiere un CSV aparte: el % acumulado esperado de cada semana es el monto
+    programado acumulado hasta esa semana sobre el monto programado total del proyecto.
+    Devuelve un DataFrame con columnas: semana, porcentaje_acumulado_esperado.
+    """
+    montos = calcular_monto_programado(cronograma_df, precios_df)
+    montos = calcular_acumulado(montos.sort_values("semana").reset_index(drop=True))
+    total_programado = montos["monto_programado"].sum()
+    montos["porcentaje_acumulado_esperado"] = calcular_porcentaje_financiero(
+        montos["monto_programado_acumulado"], total_programado
+    )
+    return montos[["semana", "porcentaje_acumulado_esperado"]]
 
 
 def calcular_desviacion(real_acumulado: pd.DataFrame, esperado: pd.DataFrame) -> pd.DataFrame:
