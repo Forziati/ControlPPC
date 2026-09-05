@@ -1,0 +1,11 @@
+codigo,descripcion,categoria
+SM,Falta de Suministro de Materiales,Recursos
+FE,Falta de Equipo,Equipamiento
+FT,Falta de Fuerza de Trabajo,RRHH
+TO,Trabajos Previos por Otros,Dependencia
+TP,Trabajos Previos Propios,Interna
+IT,Interferencia con Otros Trabajos,Coordinación
+EP,Error de Programación,Gestión
+ET,Estimación Incorrecta de Tiempo,Gestión
+RT,Retrabajo,Calidad
+CC,Condiciones Climáticas,Externa

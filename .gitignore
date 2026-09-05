@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+data/historico/*
+!data/historico/.gitkeep
+output/
+.pytest_cache/
+*.json.bak
