@@ -1,40 +1,54 @@
 {
-  "semana": 1,
-  "fecha_ejecucion": "2026-09-06T14:42:44.141233",
+  "semana": 3,
+  "fecha_ejecucion": "2026-09-06T14:42:44.208497",
   "commit_codigo": "12d266221ac5b5bc091d8f3dbdbbddf9f993e5aa",
   "metricas": {
     "ppc_semanal": [
       {
-        "semana": 1,
+        "semana": 3,
         "total_actividades": 6,
-        "actividades_cumplidas": 1,
-        "ppc": 16.67
+        "actividades_cumplidas": 0,
+        "ppc": 0.0
       }
     ],
     "monto_programado": 2240000.0,
-    "monto_ejecutado": 1315000.0
+    "monto_ejecutado": 1075000.0
   },
   "cnc_top5": [
     {
       "codigo": "SM",
-      "frecuencia": 1,
+      "frecuencia": 2,
       "descripcion": "Falta de Suministro de Materiales",
       "categoria": "Recursos",
       "porcentaje": 33.33
     },
     {
-      "codigo": "FT",
+      "codigo": "FE",
       "frecuencia": 1,
-      "descripcion": "Falta de Fuerza de Trabajo",
-      "categoria": "RRHH",
-      "porcentaje": 33.33
+      "descripcion": "Falta de Equipo",
+      "categoria": "Equipamiento",
+      "porcentaje": 16.67
+    },
+    {
+      "codigo": "TP",
+      "frecuencia": 1,
+      "descripcion": "Trabajos Previos Propios",
+      "categoria": "Interna",
+      "porcentaje": 16.67
+    },
+    {
+      "codigo": "CC",
+      "frecuencia": 1,
+      "descripcion": "Condiciones Climáticas",
+      "categoria": "Externa",
+      "porcentaje": 16.67
     },
     {
       "codigo": "TO",
       "frecuencia": 1,
       "descripcion": "Trabajos Previos por Otros",
       "categoria": "Dependencia",
-      "porcentaje": 33.33
+      "porcentaje": 16.67
     }
   ],
   "costo_ia": {

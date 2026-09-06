@@ -4,6 +4,7 @@ from datetime import date
 from src.gestor_acciones import (
     actualizar_estado,
     crear_accion,
+    listar_acciones_vencidas,
     obtener_accion_vigente_por_cnc,
     validar_accion,
 )
@@ -65,6 +66,28 @@ class TestGestorAcciones(unittest.TestCase):
     def test_obtener_accion_vigente_por_cnc_sin_coincidencias(self):
         accion = crear_accion("SM", "Comprar materiales", "Juan", "juan@example.com", date(2026, 1, 15))
         self.assertIsNone(obtener_accion_vigente_por_cnc("FT", [accion]))
+
+    def test_listar_acciones_vencidas_detecta_plazo_pasado(self):
+        vencida = crear_accion("SM", "Comprar materiales", "Juan", "juan@example.com", date(2026, 1, 1))
+        vigente = crear_accion("FT", "Sumar cuadrilla", "Ana", "ana@example.com", date(2026, 6, 1))
+        acciones = [vencida, vigente]
+
+        resultado = listar_acciones_vencidas(acciones, fecha_referencia=date(2026, 3, 1))
+
+        self.assertEqual(len(resultado), 1)
+        self.assertEqual(resultado[0]["cnc"], "SM")
+
+    def test_listar_acciones_vencidas_ignora_completadas(self):
+        accion = crear_accion("SM", "Comprar materiales", "Juan", "juan@example.com", date(2026, 1, 1))
+        actualizar_estado([accion], accion["id"], "completada")
+
+        resultado = listar_acciones_vencidas([accion], fecha_referencia=date(2026, 3, 1))
+
+        self.assertEqual(resultado, [])
+
+    def test_listar_acciones_vencidas_sin_vencidas(self):
+        accion = crear_accion("SM", "Comprar materiales", "Juan", "juan@example.com", date(2026, 12, 1))
+        self.assertEqual(listar_acciones_vencidas([accion], fecha_referencia=date(2026, 3, 1)), [])
 
 
 if __name__ == "__main__":

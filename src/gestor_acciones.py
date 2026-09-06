@@ -102,3 +102,31 @@ def obtener_accion_vigente_por_cnc(cnc: str, acciones_list: list):
     if not candidatas:
         return None
     return max(candidatas, key=lambda accion: accion.get("fecha_creacion", ""))
+
+
+def listar_acciones_vencidas(acciones_list: list, fecha_referencia: date = None) -> list:
+    """Devuelve las acciones 'pendiente'/'en_curso' cuya fecha_plazo ya pasó.
+
+    Es el mecanismo de respuesta ante una acción correctiva que no se resolvió a
+    tiempo: se usa en la pestaña Seguimiento para que una acción vencida no pueda
+    pasar desapercibida entre las demás, en vez de depender de que alguien la
+    note a simple vista.
+    """
+    if fecha_referencia is None:
+        fecha_referencia = date.today()
+
+    vencidas = []
+    for accion in acciones_list:
+        if accion.get("estado") not in ("pendiente", "en_curso"):
+            continue
+        fecha_plazo_str = accion.get("fecha_plazo")
+        if not fecha_plazo_str:
+            continue
+        try:
+            fecha_plazo = date.fromisoformat(str(fecha_plazo_str))
+        except ValueError:
+            continue
+        if fecha_plazo < fecha_referencia:
+            vencidas.append(accion)
+
+    return vencidas

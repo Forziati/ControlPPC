@@ -1,0 +1,43 @@
+{
+  "corridas": {
+    "semana_01": {
+      "modelo": "ninguno (0 llamadas a un modelo de lenguaje en esta corrida)",
+      "tokens_entrada": 0,
+      "tokens_salida": 0,
+      "tarifa_entrada_usd_por_mtok": 2.0,
+      "tarifa_salida_usd_por_mtok": 10.0,
+      "costo_entrada_usd": 0.0,
+      "costo_salida_usd": 0.0,
+      "costo_total_usd": 0.0,
+      "formula": "costo_total_usd = (tokens_entrada / 1e6 * tarifa_entrada_usd_por_mtok) + (tokens_salida / 1e6 * tarifa_salida_usd_por_mtok)",
+      "verificado_por": "tests/test_sin_ia_en_runtime.py"
+    },
+    "semana_02": {
+      "modelo": "ninguno (0 llamadas a un modelo de lenguaje en esta corrida)",
+      "tokens_entrada": 0,
+      "tokens_salida": 0,
+      "tarifa_entrada_usd_por_mtok": 2.0,
+      "tarifa_salida_usd_por_mtok": 10.0,
+      "costo_entrada_usd": 0.0,
+      "costo_salida_usd": 0.0,
+      "costo_total_usd": 0.0,
+      "formula": "costo_total_usd = (tokens_entrada / 1e6 * tarifa_entrada_usd_por_mtok) + (tokens_salida / 1e6 * tarifa_salida_usd_por_mtok)",
+      "verificado_por": "tests/test_sin_ia_en_runtime.py"
+    },
+    "semana_03": {
+      "modelo": "ninguno (0 llamadas a un modelo de lenguaje en esta corrida)",
+      "tokens_entrada": 0,
+      "tokens_salida": 0,
+      "tarifa_entrada_usd_por_mtok": 2.0,
+      "tarifa_salida_usd_por_mtok": 10.0,
+      "costo_entrada_usd": 0.0,
+      "costo_salida_usd": 0.0,
+      "costo_total_usd": 0.0,
+      "formula": "costo_total_usd = (tokens_entrada / 1e6 * tarifa_entrada_usd_por_mtok) + (tokens_salida / 1e6 * tarifa_salida_usd_por_mtok)",
+      "verificado_por": "tests/test_sin_ia_en_runtime.py"
+    }
+  },
+  "costo_total_usd": 0.0,
+  "cantidad_corridas": 3,
+  "nota": "Ledger agregado de costo de IA por corrida (tokens x tarifa), uno por cada carpeta corridas/<id>/. Generado por corridas/generar_corrida.py; cada valor es recalculado, nunca tipeado a mano."
+}

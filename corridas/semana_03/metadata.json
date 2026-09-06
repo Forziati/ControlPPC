@@ -1,6 +1,6 @@
 {
-  "corrida_id": "semana_01",
-  "fecha_ejecucion": "2026-09-06T14:42:44.141233",
+  "corrida_id": "semana_03",
+  "fecha_ejecucion": "2026-09-06T14:42:44.208497",
   "commit_codigo": "12d266221ac5b5bc091d8f3dbdbbddf9f993e5aa",
   "inputs_utilizados": [
     "cronograma_semanal.csv",
@@ -9,7 +9,7 @@
     "causas_incumplimiento.csv"
   ],
   "outputs_generados": [
-    "s1_cierre.json"
+    "s3_cierre.json"
   ],
   "reproducible": true,
   "costo_ia": {
@@ -24,5 +24,5 @@
     "formula": "costo_total_usd = (tokens_entrada / 1e6 * tarifa_entrada_usd_por_mtok) + (tokens_salida / 1e6 * tarifa_salida_usd_por_mtok)",
     "verificado_por": "tests/test_sin_ia_en_runtime.py"
   },
-  "nota": "Corrida generada ejecutando directamente src/calculador_ppc.py, src/calculador_inversion.py y src/analizador_cnc.py sobre los CSVs fijos en corridas/semana_01/input/ (no sobre data/, para que la corrida no cambie si los datos de ejemplo del repo se actualizan). Reproducibilidad verificada en tests/test_reproducibilidad.py."
+  "nota": "Corrida generada ejecutando directamente src/calculador_ppc.py, src/calculador_inversion.py y src/analizador_cnc.py sobre los CSVs fijos en corridas/semana_03/input/ (no sobre data/, para que la corrida no cambie si los datos de ejemplo del repo se actualizan). Reproducibilidad verificada en tests/test_reproducibilidad.py."
 }

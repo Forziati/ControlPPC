@@ -1,18 +1,18 @@
 {
-  "semana": 1,
-  "fecha_ejecucion": "2026-09-06T14:42:44.141233",
+  "semana": 2,
+  "fecha_ejecucion": "2026-09-06T14:42:44.175585",
   "commit_codigo": "12d266221ac5b5bc091d8f3dbdbbddf9f993e5aa",
   "metricas": {
     "ppc_semanal": [
       {
-        "semana": 1,
+        "semana": 2,
         "total_actividades": 6,
-        "actividades_cumplidas": 1,
-        "ppc": 16.67
+        "actividades_cumplidas": 5,
+        "ppc": 83.33
       }
     ],
     "monto_programado": 2240000.0,
-    "monto_ejecutado": 1315000.0
+    "monto_ejecutado": 2195000.0
   },
   "cnc_top5": [
     {
@@ -20,21 +20,14 @@
       "frecuencia": 1,
       "descripcion": "Falta de Suministro de Materiales",
       "categoria": "Recursos",
-      "porcentaje": 33.33
+      "porcentaje": 50.0
     },
     {
       "codigo": "FT",
       "frecuencia": 1,
       "descripcion": "Falta de Fuerza de Trabajo",
       "categoria": "RRHH",
-      "porcentaje": 33.33
-    },
-    {
-      "codigo": "TO",
-      "frecuencia": 1,
-      "descripcion": "Trabajos Previos por Otros",
-      "categoria": "Dependencia",
-      "porcentaje": 33.33
+      "porcentaje": 50.0
     }
   ],
   "costo_ia": {

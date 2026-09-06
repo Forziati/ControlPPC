@@ -29,6 +29,7 @@ from src.gestor_acciones import (
     actualizar_estado,
     crear_accion,
     generar_tabla_acciones_dict,
+    listar_acciones_vencidas,
     obtener_accion_vigente_por_cnc,
 )
 from src.persistencia import (
@@ -522,6 +523,13 @@ with tab6:
         semana_revisar = st.selectbox("Semana a revisar", options=semanas_disponibles, index=len(semanas_disponibles) - 1)
         acciones_previas = _obtener_acciones(int(semana_revisar))
         pendientes = [a for a in acciones_previas if a["estado"] in ("pendiente", "en_curso")]
+        ids_vencidas = {accion["id"] for accion in listar_acciones_vencidas(acciones_previas)}
+
+        if ids_vencidas:
+            st.warning(
+                f"⚠️ {len(ids_vencidas)} acción(es) con la fecha de plazo ya vencida — "
+                "quedan marcadas abajo para que no pasen desapercibidas."
+            )
 
         if not pendientes:
             st.info("No hay acciones pendientes o en curso en esa semana.")
@@ -529,7 +537,11 @@ with tab6:
             with st.form("form_seguimiento"):
                 respuestas = {}
                 for accion in pendientes:
-                    st.markdown(f"**{accion['cnc']}** - {accion['descripcion']} (responsable: {accion['responsable']})")
+                    etiqueta_vencida = " · ⚠️ VENCIDA" if accion["id"] in ids_vencidas else ""
+                    st.markdown(
+                        f"**{accion['cnc']}** - {accion['descripcion']} "
+                        f"(responsable: {accion['responsable']}, plazo: {accion['fecha_plazo']}{etiqueta_vencida})"
+                    )
                     completada = st.checkbox("¿Completada?", key=f"completada_{accion['id']}")
                     funciono = st.radio(
                         "¿Funcionó?", options=["positivo", "parcial", "negativo"], key=f"funciono_{accion['id']}", horizontal=True

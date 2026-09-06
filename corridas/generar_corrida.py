@@ -28,6 +28,12 @@ from src.analizador_cnc import contar_cnc_frecuencias, enriquecer_con_descripcio
 from src.calculador_inversion import calcular_monto_ejecutado, calcular_monto_programado
 from src.calculador_ppc import calcular_ppc_acumulado, calcular_ppc_por_actividad
 
+# Tarifa pública de Claude Sonnet 5 (el modelo usado para desarrollar este repositorio),
+# citada acá únicamente para que la fórmula de costo por corrida sea evaluable con una
+# tarifa real y no un placeholder — no porque esta corrida invoque el modelo.
+TARIFA_ENTRADA_SONNET5_USD_POR_MTOK = 2.00
+TARIFA_SALIDA_SONNET5_USD_POR_MTOK = 10.00
+
 
 def _commit_actual() -> str:
     try:
@@ -36,6 +42,37 @@ def _commit_actual() -> str:
         ).strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
         return "desconocido (no se pudo leer git rev-parse HEAD)"
+
+
+def calcular_costo_ia_corrida() -> dict:
+    """Costo de IA de ESTA corrida (ejecutar el cálculo) — no el costo de desarrollar el sistema.
+
+    tokens_entrada y tokens_salida son 0 porque `calcular_resultado_corrida` sólo llama
+    a funciones puras de `src/` (pandas): no hay ningún request a un modelo de lenguaje
+    en este camino. Esto no es una afirmación: `tests/test_sin_ia_en_runtime.py` falla si
+    algún archivo de `src/` o `streamlit_app.py` alguna vez importa un SDK de IA generativa,
+    lo que haría falsos estos ceros.
+    """
+    tokens_entrada = 0
+    tokens_salida = 0
+    costo_entrada_usd = round(tokens_entrada / 1_000_000 * TARIFA_ENTRADA_SONNET5_USD_POR_MTOK, 6)
+    costo_salida_usd = round(tokens_salida / 1_000_000 * TARIFA_SALIDA_SONNET5_USD_POR_MTOK, 6)
+
+    return {
+        "modelo": "ninguno (0 llamadas a un modelo de lenguaje en esta corrida)",
+        "tokens_entrada": tokens_entrada,
+        "tokens_salida": tokens_salida,
+        "tarifa_entrada_usd_por_mtok": TARIFA_ENTRADA_SONNET5_USD_POR_MTOK,
+        "tarifa_salida_usd_por_mtok": TARIFA_SALIDA_SONNET5_USD_POR_MTOK,
+        "costo_entrada_usd": costo_entrada_usd,
+        "costo_salida_usd": costo_salida_usd,
+        "costo_total_usd": round(costo_entrada_usd + costo_salida_usd, 6),
+        "formula": (
+            "costo_total_usd = (tokens_entrada / 1e6 * tarifa_entrada_usd_por_mtok) "
+            "+ (tokens_salida / 1e6 * tarifa_salida_usd_por_mtok)"
+        ),
+        "verificado_por": "tests/test_sin_ia_en_runtime.py",
+    }
 
 
 def calcular_resultado_corrida(corrida_id: str, semana: int) -> dict:
@@ -76,6 +113,7 @@ def calcular_resultado_corrida(corrida_id: str, semana: int) -> dict:
             "monto_ejecutado": monto_ejecutado,
         },
         "cnc_top5": cnc_top5_df.to_dict(orient="records"),
+        "costo_ia": calcular_costo_ia_corrida(),
     }
 
 
@@ -103,6 +141,7 @@ def generar_corrida(corrida_id: str, semana: int) -> dict:
         ],
         "outputs_generados": [f"s{semana}_cierre.json"],
         "reproducible": True,
+        "costo_ia": resultado["costo_ia"],
         "nota": (
             "Corrida generada ejecutando directamente src/calculador_ppc.py, "
             "src/calculador_inversion.py y src/analizador_cnc.py sobre los CSVs fijos "
@@ -117,8 +156,44 @@ def generar_corrida(corrida_id: str, semana: int) -> dict:
     return resultado
 
 
+def listar_corridas() -> list:
+    """Devuelve los ids de todas las carpetas corridas/<id>/ que tengan un input/ válido."""
+    return sorted(
+        directorio.name
+        for directorio in (RAIZ_REPO / "corridas").iterdir()
+        if directorio.is_dir() and (directorio / "input").is_dir()
+    )
+
+
+def generar_todas_las_corridas() -> dict:
+    """Regenera output/metadata de cada corrida y escribe el ledger agregado de costo por corrida."""
+    ledger = {"corridas": {}, "costo_total_usd": 0.0}
+
+    for corrida_id in listar_corridas():
+        semana = int(corrida_id.split("_")[-1])
+        resultado = generar_corrida(corrida_id, semana)
+        ledger["corridas"][corrida_id] = resultado["costo_ia"]
+        ledger["costo_total_usd"] = round(ledger["costo_total_usd"] + resultado["costo_ia"]["costo_total_usd"], 6)
+
+    ledger["cantidad_corridas"] = len(ledger["corridas"])
+    ledger["nota"] = (
+        "Ledger agregado de costo de IA por corrida (tokens x tarifa), uno por cada "
+        "carpeta corridas/<id>/. Generado por corridas/generar_corrida.py; cada valor "
+        "es recalculado, nunca tipeado a mano."
+    )
+
+    with open(RAIZ_REPO / "corridas" / "costos_por_corrida.json", "w", encoding="utf-8") as archivo:
+        json.dump(ledger, archivo, ensure_ascii=False, indent=2)
+
+    return ledger
+
+
 if __name__ == "__main__":
-    corrida = sys.argv[1] if len(sys.argv) > 1 else "semana_01"
-    numero_semana = int(corrida.split("_")[-1])
-    salida = generar_corrida(corrida, numero_semana)
-    print(json.dumps(salida, ensure_ascii=False, indent=2))
+    if len(sys.argv) > 1 and sys.argv[1] == "--todas":
+        resultado_ledger = generar_todas_las_corridas()
+        print(json.dumps(resultado_ledger, ensure_ascii=False, indent=2))
+    else:
+        corrida = sys.argv[1] if len(sys.argv) > 1 else "semana_01"
+        numero_semana = int(corrida.split("_")[-1])
+        salida = generar_corrida(corrida, numero_semana)
+        print(json.dumps(salida, ensure_ascii=False, indent=2))

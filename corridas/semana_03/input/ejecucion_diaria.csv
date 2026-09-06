@@ -1,0 +1,8 @@
+semana,dia,actividad,volumen_ejecutado,frente,cnc
+3,lunes,Despalme,400,Frente 1,SM
+3,martes,Despalme,300,Frente 1,SM
+3,miércoles,Excavación,500,Frente 1,FE
+3,jueves,Terraplén,300,Frente 1,TP
+3,viernes,Base Hidráulica,200,Frente 2,CC
+3,sábado,Base Modificada,100,Frente 2,TO
+3,sábado,Carpeta asfáltica,200,Frente 2,IT
