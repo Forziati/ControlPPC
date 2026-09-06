@@ -15,10 +15,11 @@ class TestReproducibilidad(unittest.TestCase):
     def test_corrida_semana_01_es_reproducible(self):
         """Re-ejecuta la corrida semana_01 y compara contra el resultado versionado en el repo.
 
-        `fecha_ejecucion` cambia en cada corrida (es metadata de auditoría, no un resultado
-        del cálculo) y se excluye de la comparación a propósito; todo lo demás -incluyendo
-        `commit_codigo`, que sólo cambia si se re-generó la corrida en otro commit- debe
-        coincidir exactamente.
+        Se excluyen a propósito `fecha_ejecucion` y `commit_codigo`: son metadata de
+        auditoría de *cuándo y sobre qué commit* se generó esa foto, no resultados del
+        cálculo — cambian en cada commit posterior sin que eso implique que el cálculo
+        dejó de ser reproducible. Lo que sí tiene que coincidir exactamente, siempre,
+        corriendo el mismo input, es `metricas` y `cnc_top5`.
         """
         ruta_esperado = RAIZ_REPO / "corridas" / "semana_01" / "output" / "s1_cierre.json"
         with open(ruta_esperado, "r", encoding="utf-8") as archivo:
@@ -26,10 +27,11 @@ class TestReproducibilidad(unittest.TestCase):
 
         obtenido = calcular_resultado_corrida("semana_01", 1)
 
-        esperado_sin_fecha = {clave: valor for clave, valor in esperado.items() if clave != "fecha_ejecucion"}
-        obtenido_sin_fecha = {clave: valor for clave, valor in obtenido.items() if clave != "fecha_ejecucion"}
+        claves_resultado = {"semana", "metricas", "cnc_top5"}
+        esperado_resultado = {clave: valor for clave, valor in esperado.items() if clave in claves_resultado}
+        obtenido_resultado = {clave: valor for clave, valor in obtenido.items() if clave in claves_resultado}
 
-        self.assertEqual(obtenido_sin_fecha, esperado_sin_fecha)
+        self.assertEqual(obtenido_resultado, esperado_resultado)
 
     def test_corrida_semana_01_ppc_y_montos_conocidos(self):
         """Ancla los valores concretos de la corrida de referencia (evita que cambien sin darse cuenta)."""

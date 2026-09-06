@@ -1,25 +1,66 @@
 # Análisis Económico - ControlPPC
 
-## Costo de IA en producción (runtime)
+## 1. Costo de IA en producción (runtime) — fórmula reproducible
 
-| Concepto | Valor |
-|---|---|
-| Tokens generativos consumidos por corrida | **0** |
-| Costo de API generativa por corrida | **0 USD** |
-| Modelo de IA utilizado en runtime | **Ninguno** |
+| Variable | Valor | Cómo se verifica |
+|---|---|---|
+| Tokens consumidos por corrida | **0** | `tests/test_sin_ia_en_runtime.py`: ningún archivo de `src/` ni `streamlit_app.py` importa un SDK de IA generativa; `requirements.txt` no incluye ninguno |
+| Tarifa del modelo en runtime | **N/A (no se invoca ningún modelo)** | — |
+| **Costo por corrida** | **`0 tokens × tarifa = $0.00 USD`** | Reproducible corriendo `python -m pytest tests/test_sin_ia_en_runtime.py -v` |
 
-**Justificación**: Ver `DECISIONES.md` (DEC-001). El sistema calcula PPC, curva S, inversión y CNC con lógica determinística (pandas). No existe ninguna llamada a un modelo de lenguaje durante el uso normal de la aplicación. Esto es una decisión de diseño explícita, no una omisión: se prioriza reproducibilidad total (mismo input → mismo output, sin variabilidad de generación) y costo operativo nulo para el equipo de obra que use la herramienta semana a semana.
+Esto no es una afirmación cualitativa: es una ecuación con sus dos variables
+verificadas por un test automatizado que falla si alguna vez se agrega una
+llamada a un modelo de lenguaje en el camino de cálculo (`src/calculador_ppc.py`,
+`src/calculador_inversion.py`, `src/comparador_curva_s.py`,
+`src/analizador_cnc.py`, `src/gestor_acciones.py`, `src/persistencia.py`,
+`src/validador.py`) o en `streamlit_app.py`. Justificación de diseño: ver
+`DECISIONES.md` (DEC-001) — se prioriza reproducibilidad total (mismo input →
+mismo output) y costo operativo nulo para el equipo de obra que use la
+herramienta semana a semana.
 
-## Costo de IA en desarrollo
+## 2. Costo de IA en desarrollo — fórmula reproducible
 
-El desarrollo del código (`src/`, `tests/`, `streamlit_app.py`, documentación) se realizó con asistencia de Claude Code. Ese uso:
+El desarrollo se hizo con Claude Code (modelo **Claude Sonnet 5**, tarifa
+pública: $2.00 / 1M tokens de entrada, $10.00 / 1M tokens de salida). A
+diferencia del runtime, acá sí hay tokens consumidos — por la sesión de
+desarrollo, no por el sistema construido — y por eso corresponde reportarlos y
+calcular el costo, no descartarlos.
 
-- Ocurrió **una sola vez** durante la construcción del sistema, no se repite en cada corrida operativa.
-- No está incluido en el costo de "uso" del sistema, de la misma manera que el costo de un IDE o de un compilador no se contabiliza como costo por corrida de un programa ya compilado.
+**Medición**: este entorno no expone un contador de tokens en vivo de la
+conversación, así que en vez de inventar una cifra precisa, `corridas/calcular_costo_desarrollo.py`
+mide algo real y reproducible por cualquiera que clone el repo: el tamaño en
+bytes de cada diff commiteado (`git show <sha>`), y estima tokens de salida con
+una heurística documentada (~4 bytes/token). Es una **cota inferior**, no el
+costo total de la sesión: no cuenta tokens de entrada/contexto (que en un
+agente de código suelen ser el componente más grande) ni el texto conversacional
+que no terminó plasmado en el repo.
 
-## Análisis económico del **dominio** (lo que la herramienta mide)
+```
+tokens_salida_estimados = bytes_del_diff / 4
+costo_estimado_usd = tokens_salida_estimados / 1,000,000 × $10.00
+```
 
-Aunque no hay costo de IA que reportar, el sistema sí realiza un análisis económico sustantivo del proyecto de construcción que controla:
+Corrida real (`python corridas/calcular_costo_desarrollo.py`, reproducible en
+cualquier checkout de este repositorio):
+
+| Commit | Fecha | Asunto | Bytes del diff | Tokens de salida (estimados) | Costo estimado |
+|---|---|---|---|---|---|
+| `9280f8f` | 2026-09-05 | Implementar sistema de control de avance de obra | 70.642 | 17.660 | $0.1766 |
+| `eaf3009` | 2026-09-05 | Rediseñar carga de datos y agregar vistas de PPC y CNC | 49.869 | 12.467 | $0.1247 |
+| `92a119b` | 2026-09-06 | Agregar evidencia de gobernanza y corridas reproducibles | 40.939 | 10.235 | $0.1023 |
+| **Total** | | | **161.450** | **40.362** | **$0.4036** |
+
+**Costo real y completo**: la cifra autoritativa (con tokens de entrada
+incluidos) está en el dashboard de uso de la cuenta de Anthropic o en el
+comando `/cost` de la sesión de Claude Code — no en este documento. Lo que
+este documento garantiza es que la cota inferior de arriba es recalculable por
+cualquiera, con un comando, contra el historial real de commits — no una cifra
+tipeada a mano.
+
+## 3. Análisis económico del **dominio** (lo que la herramienta mide)
+
+Además de lo anterior, el sistema realiza un análisis económico sustantivo del
+proyecto de construcción que controla:
 
 | Métrica | Qué mide | Dónde se calcula |
 |---|---|---|
@@ -29,17 +70,18 @@ Aunque no hay costo de IA que reportar, el sistema sí realiza un análisis econ
 | % de avance financiero | Ejecutado acumulado / total programado | `src/calculador_inversion.py::calcular_porcentaje_financiero` |
 | Desviación vs. curva S | Real acumulado − esperado según cronograma | `src/comparador_curva_s.py` |
 
-Ejemplo real (corrida `corridas/semana_01/`, reproducible con `python corridas/generar_corrida.py semana_01` y verificada en `tests/test_reproducibilidad.py`):
+Ejemplo real (corrida `corridas/semana_01/`, reproducible con
+`python corridas/generar_corrida.py semana_01` y verificada en
+`tests/test_reproducibilidad.py`):
 
 ```
 Monto programado (Semana 1): $2.240.000
 Monto ejecutado (Semana 1):  $1.315.000
 ```
 
-Este es el análisis económico central del proyecto: no es sobre el costo de la IA, sino sobre el costo real de la obra que la herramienta ayuda a controlar.
-
-## Proyección y supuestos
+## 4. Proyección y supuestos
 
 - El monto programado total del proyecto es la suma de `volumen × precio_unitario` de todas las filas de `cronograma_semanal.csv`.
 - Se asume que los precios unitarios (`precios_unitarios.csv`) permanecen constantes durante el horizonte del proyecto; si cambian (por inflación o renegociación), deben actualizarse manualmente y quedará reflejado en la próxima corrida.
 - No se proyecta automáticamente el costo final estimado (EAC); esa es una mejora futura declarada, no una funcionalidad actual.
+- La estimación de costo de desarrollo (sección 2) es una cota inferior declarada como tal; no reemplaza el reporte de uso real de la cuenta de Anthropic.

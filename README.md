@@ -87,6 +87,8 @@ El resto se carga **directo en la app**, sin subir CSVs:
 - [`docs/ANALISIS_ECONOMICO.md`](docs/ANALISIS_ECONOMICO.md): costo de IA (nulo en runtime) y análisis económico del proyecto.
 - [`DECISIONES.md`](DECISIONES.md): decisiones de diseño y proceso, incluyendo fallas detectadas y corregidas.
 - [`corridas/`](corridas/): corridas reproducibles (input → output → metadata) generadas con `corridas/generar_corrida.py`.
+- [`prompts/`](prompts/): historial real de los prompts usados para construir este sistema, en orden.
+- [`EVIDENCIA_EJECUCION.md`](EVIDENCIA_EJECUCION.md): salidas reales capturadas de tests, la app y las corridas (no descripciones).
 
 ## Licencia
 
