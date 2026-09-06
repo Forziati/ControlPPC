@@ -90,5 +90,6 @@ Selecciona un rango de semanas ya procesadas para ver:
 
 1. Sube el repositorio a GitHub.
 2. Entra a [streamlit.io/cloud](https://streamlit.io/cloud) y conecta tu cuenta de GitHub.
-3. Selecciona el repositorio, la rama (`main`) y `streamlit_app.py` como archivo principal.
+3. Selecciona el repositorio, la rama que quieras publicar (en este repo, `claude/proyecto-espanol-0bywn3`;
+   no existe una rama `main`) y `streamlit_app.py` como archivo principal.
 4. Streamlit Cloud instala `requirements.txt` y despliega la app automáticamente.

@@ -83,6 +83,10 @@ El resto se carga **directo en la app**, sin subir CSVs:
 
 - [`docs/METODOLOGIA.md`](docs/METODOLOGIA.md): explicación de los conceptos (PPC, curva S, CNC).
 - [`docs/GUIA_USO.md`](docs/GUIA_USO.md): cómo usar la app paso a paso.
+- [`docs/GOBERNANZA.md`](docs/GOBERNANZA.md): roles, supervisión humana y manejo de fallas.
+- [`docs/ANALISIS_ECONOMICO.md`](docs/ANALISIS_ECONOMICO.md): costo de IA (nulo en runtime) y análisis económico del proyecto.
+- [`DECISIONES.md`](DECISIONES.md): decisiones de diseño y proceso, incluyendo fallas detectadas y corregidas.
+- [`corridas/`](corridas/): corridas reproducibles (input → output → metadata) generadas con `corridas/generar_corrida.py`.
 
 ## Licencia
 

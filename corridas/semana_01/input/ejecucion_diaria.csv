@@ -1,0 +1,17 @@
+semana,dia,actividad,volumen_ejecutado,frente,cnc
+1,lunes,Despalme,100,Frente 1,
+1,lunes,Base Hidráulica,0,Frente 2,SM
+1,martes,Despalme,250,Frente 1,
+1,martes,Base Hidráulica,100,Frente 2,
+1,miércoles,Despalme,200,Frente 1,
+1,miércoles,Excavación,200,Frente 1,
+1,miércoles,Base Hidráulica,100,Frente 2,
+1,jueves,Despalme,200,Frente 1,
+1,jueves,Excavación,100,Frente 1,
+1,jueves,Base Hidráulica,200,Frente 2,FT
+1,viernes,Despalme,250,Frente 1,
+1,viernes,Excavación,200,Frente 1,
+1,viernes,Base Hidráulica,200,Frente 2,
+1,sábado,Despalme,200,Frente 1,
+1,sábado,Excavación,150,Frente 1,
+1,sábado,Base Modificada,100,Frente 2,TO

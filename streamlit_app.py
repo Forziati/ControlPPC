@@ -47,6 +47,7 @@ from src.validador import (
     validar_cronograma,
     validar_ejecucion,
     validar_precios,
+    validar_precios_faltantes,
 )
 
 RUTA_DATOS = os.path.join(os.path.dirname(__file__), "data")
@@ -112,6 +113,7 @@ def _procesar_datos(semana_actual: int) -> list:
     if not ejecucion_df.empty:
         errores += validar_ejecucion(ejecucion_df)
         errores += validar_consistencia(cronograma_df, ejecucion_df)
+        errores += validar_precios_faltantes(ejecucion_df, precios_df)
     if errores:
         return errores
 
@@ -304,7 +306,11 @@ with tab1:
             df_para_guardar["cnc"] = df_para_guardar["cnc"].fillna("")
             df_para_guardar["semana"] = int(semana_actual)
 
-            errores = validar_ejecucion(df_para_guardar) + validar_consistencia(cronograma_df, df_para_guardar)
+            errores = (
+                validar_ejecucion(df_para_guardar)
+                + validar_consistencia(cronograma_df, df_para_guardar)
+                + validar_precios_faltantes(df_para_guardar, precios_df)
+            )
             if errores:
                 st.error("Se encontraron errores de validación:")
                 for error in errores:

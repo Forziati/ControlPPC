@@ -1,0 +1,16 @@
+{
+  "corrida_id": "semana_01",
+  "fecha_ejecucion": "2026-09-06T13:57:26.967342",
+  "commit_codigo": "eaf300972f591c83625e2d731d22dbf8e4a3b8d9",
+  "inputs_utilizados": [
+    "cronograma_semanal.csv",
+    "precios_unitarios.csv",
+    "ejecucion_diaria.csv",
+    "causas_incumplimiento.csv"
+  ],
+  "outputs_generados": [
+    "s1_cierre.json"
+  ],
+  "reproducible": true,
+  "nota": "Corrida generada ejecutando directamente src/calculador_ppc.py, src/calculador_inversion.py y src/analizador_cnc.py sobre los CSVs fijos en corridas/semana_01/input/ (no sobre data/, para que la corrida no cambie si los datos de ejemplo del repo se actualizan). Reproducibilidad verificada en tests/test_reproducibilidad.py."
+}

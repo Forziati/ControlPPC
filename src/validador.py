@@ -89,3 +89,24 @@ def validar_consistencia(cronograma: pd.DataFrame, ejecucion: pd.DataFrame) -> l
             )
 
     return sorted(set(errores))
+
+
+def validar_precios_faltantes(ejecucion: pd.DataFrame, precios: pd.DataFrame) -> list:
+    """Valida que toda actividad ejecutada tenga un precio unitario cargado.
+
+    Sin este chequeo, `calcular_monto_ejecutado` computa un monto de $0 para esa
+    actividad de forma silenciosa (el merge deja NaN y la suma lo ignora), lo que
+    subestima la inversión ejecutada sin ninguna advertencia visible.
+    """
+    if ejecucion.empty:
+        return []
+
+    actividades_ejecutadas = set(ejecucion["actividad"].dropna().unique())
+    actividades_con_precio = set(precios["actividad"].dropna().unique())
+    faltantes = sorted(actividades_ejecutadas - actividades_con_precio)
+
+    return [
+        f"La actividad '{actividad}' tiene ejecución registrada pero no tiene precio "
+        f"unitario cargado: su monto ejecutado se calcularía como $0."
+        for actividad in faltantes
+    ]
